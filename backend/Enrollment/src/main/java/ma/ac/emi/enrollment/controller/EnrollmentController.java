@@ -1,7 +1,11 @@
 package ma.ac.emi.enrollment.controller;
 
+import ma.ac.emi.enrollment.DTO.CoursDto;
+import ma.ac.emi.enrollment.DTO.EtudiantDto;
 import ma.ac.emi.enrollment.entity.Enrollment;
+import ma.ac.emi.enrollment.service.CoursClient;
 import ma.ac.emi.enrollment.service.EnrollmentService;
+import ma.ac.emi.enrollment.service.EtudiantClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.*;
@@ -25,7 +29,12 @@ public class EnrollmentController {
     @Autowired
     private RestTemplate restTemplate;
 
-    // Method to assign a course to a student
+  @Autowired
+  private EtudiantClient etudiantClient;
+
+    @Autowired
+    private CoursClient coursClient;
+
     @PostMapping("/student/{studentId}/course/{courseId}")
     public Map<String, Object> assignCourseToStudent(@PathVariable Long studentId, @PathVariable Long courseId) {
         // Check if the student is already enrolled in the course
@@ -55,6 +64,28 @@ public class EnrollmentController {
 
         return response;
     }
+
+    @GetMapping("/{id}")
+    public Map<String, Object> getEnrollmentById(@PathVariable Long id) {
+        // Fetch enrollment by ID
+        Enrollment enrollment = enrollmentService.getEnrollmentById(id);
+        if (enrollment == null) {
+            throw new RuntimeException("Enrollment not found with id: " + id);
+        }
+
+        // Fetch student and course details using Feign clients
+        EtudiantDto student = etudiantClient.getEtudiantById(enrollment.getStudentId());
+        CoursDto course = coursClient.getCoursById(enrollment.getCourseId());
+
+        // Construct response
+        Map<String, Object> response = new HashMap<>();
+        response.put("enrollmentId", enrollment.getId());
+        response.put("student", student);
+        response.put("course", course);
+
+        return response;
+    }
+
 
 
     // Method to get all enrollments grouped by studentId (for viewing)

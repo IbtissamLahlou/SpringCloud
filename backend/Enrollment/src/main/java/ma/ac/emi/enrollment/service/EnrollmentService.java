@@ -28,5 +28,9 @@ public class EnrollmentService {
         return enrollmentRepository.findAll();
     }
 
+    public Enrollment getEnrollmentById(Long id) {
+        // Fetch the enrollment by ID using the repository
+        return enrollmentRepository.findById(id).orElse(null);
+    }
 
 }
