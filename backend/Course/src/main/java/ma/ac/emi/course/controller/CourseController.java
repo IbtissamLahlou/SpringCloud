@@ -4,10 +4,9 @@ import ma.ac.emi.course.entity.Course;
 import ma.ac.emi.course.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/courses")
@@ -17,7 +16,7 @@ public class CourseController {
     private CourseService courseService;
 
     @Autowired
-    private RestTemplate restTemplate;
+    private WebClient.Builder webClientBuilder;
 
     @GetMapping
     public List<Course> getAllCourses() {
@@ -34,18 +33,20 @@ public class CourseController {
         return courseService.getCourseById(courseId);
     }
 
-
     @GetMapping("/{courseId}/students")
     public List<String> getStudentsEnrolledInCourse(@PathVariable Long courseId) {
         String url = "http://localhost:8081/students/courses/" + courseId;
-        List<String> students = restTemplate.getForObject(url, List.class);
-        return students;
+
+        return webClientBuilder.build()
+                .get()
+                .uri(url)
+                .retrieve()
+                .bodyToMono(List.class)
+                .block();
     }
 
     @DeleteMapping("/{courseId}")
-    public void deleteStudent(@PathVariable Long courseId) {
+    public void deleteCourse(@PathVariable Long courseId) {
         courseService.deleteCourse(courseId);
     }
-
-
 }

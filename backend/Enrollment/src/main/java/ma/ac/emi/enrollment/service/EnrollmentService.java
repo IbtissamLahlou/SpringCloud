@@ -24,6 +24,9 @@ public class EnrollmentService {
         return enrollmentRepository.save(enrollment);
     }
 
+    public List<Enrollment> getAllEnrollments() {
+        return enrollmentRepository.findAll();
+    }
 
 
 }

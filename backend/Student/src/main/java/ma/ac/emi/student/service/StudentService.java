@@ -32,16 +32,7 @@ public class StudentService {
         studentRepository.deleteById(studentId);
     }
 
-    public Student assignCourseToStudent(Long studentId, Long courseId) {
-        Optional<Student> studentOpt = studentRepository.findById(studentId);
-        if (studentOpt.isPresent()) {
-            Student student = studentOpt.get();
-            student.getCourseIds().add(courseId);  // Add courseId to courseIds set
-            return studentRepository.save(student);  // Save updated student
-        } else {
-            throw new RuntimeException("Student not found with ID " + studentId);
-        }
-    }
+
 
 
 }
