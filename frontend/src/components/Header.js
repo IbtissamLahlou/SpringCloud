@@ -34,9 +34,10 @@ export default function Header() {
       {[
         { href: "/students", text: "Liste des étudiants" },
         { href: "/courses", text: "Liste des cours" },
+        { href: "/enroll", text: "Inscrire un étudiant" },
+        { href: "/enroll-list", text: "Liste des inscriptions" },
         { href: "/create-course", text: "Créer un cours" },
         { href: "/create-student", text: "Créer un étudiant" },
-        { href: "/enroll", text: "Inscrire un étudiant" },
       ].map((link, index) => (
         <a
           key={index}

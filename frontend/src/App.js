@@ -14,6 +14,7 @@ import CourseDetails from "./CourseDetails";
 import CreateCourse from "./components/CreateCourse";
 import CreateStudent from "./components/CreateStudent";
 import EnrollStudent from "./components/EnrollStudent";
+import EnrollmentsTable from "./components/EnrollmentsTable";
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
           <Route path="/create-course" element={<CreateCourse />} />
           <Route path="/create-student" element={<CreateStudent />} />
           <Route path="/enroll" element={<EnrollStudent />} />
+          <Route path="/enroll-list" element={<EnrollmentsTable />} />
         </Routes>
       </div>
     </Router>

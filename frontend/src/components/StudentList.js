@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
 
 const StudentList = () => {
-  const [students, setStudents] = useState([]);
-  const [searchId, setSearchId] = useState("");
-  const [filteredStudents, setFilteredStudents] = useState([]);
-  const [error, setError] = useState(null);
+  const [students, setStudents] = useState([]); // All students
+  const [searchName, setSearchName] = useState(""); // Search by name state
+  const [filteredStudents, setFilteredStudents] = useState([]); // Filtered students based on search
+  const [error, setError] = useState(null); // Error message state
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -23,77 +22,91 @@ const StudentList = () => {
   }, []);
 
   useEffect(() => {
-    if (searchId === "") {
+    if (searchName === "") {
       setFilteredStudents(students);
     } else {
       const filtered = students.filter((student) =>
-        student.id.toString().includes(searchId)
+        student.name.toLowerCase().includes(searchName.toLowerCase())
       );
       setFilteredStudents(filtered);
     }
-  }, [searchId, students]);
+  }, [searchName, students]);
 
   return (
-    <div>
-      <h1>Liste des etudiants</h1>
+    <div style={{ margin: "20px" }}>
+      <h1>Liste des étudiants</h1>
 
       {error && <div style={{ color: "red" }}>{error}</div>}
 
-      <div>
-        <label htmlFor="searchId">Recherche par ID: </label>
+      {/* Search input */}
+      <div style={{ marginBottom: "20px" }}>
+        <label htmlFor="searchName">Recherche par nom: </label>
         <input
           type="text"
-          id="searchId"
-          value={searchId}
-          onChange={(e) => setSearchId(e.target.value)}
+          id="searchName"
+          value={searchName}
+          onChange={(e) => setSearchName(e.target.value)}
+          placeholder="Search by name"
+          style={{
+            padding: "8px",
+            fontSize: "16px",
+            width: "300px",
+            marginLeft: "10px",
+          }}
         />
       </div>
 
-      <ul>
-        {filteredStudents.length === 0 ? (
-          <li>No students found.</li>
-        ) : (
-          filteredStudents.map((student) => (
-            <li key={student.id}>
-              <Link to={`/students/${student.id}`}>
-                <strong>
-                  ID : {student.id}, {student.name}
-                </strong>
-              </Link>
-            </li>
-          ))
-        )}
-      </ul>
+      {/* Table structure for students */}
+      <table
+        style={{
+          width: "60%", // Set table width to 60%
+          margin: "0 auto", // Center the table
+          borderCollapse: "collapse",
+        }}
+      >
+        <thead>
+          <tr>
+            <th style={{ padding: "10px", border: "1px solid #ddd" }}>ID</th>
+            <th style={{ padding: "10px", border: "1px solid #ddd" }}>Name</th>
+            <th style={{ padding: "10px", border: "1px solid #ddd" }}>Email</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredStudents.length === 0 ? (
+            <tr>
+              <td colSpan="3" style={{ padding: "10px", textAlign: "center" }}>
+                No students found.
+              </td>
+            </tr>
+          ) : (
+            filteredStudents.map((student) => (
+              <tr
+                key={student.id}
+                style={{
+                  cursor: "pointer",
+                  backgroundColor: "#f9f9f9",
+                  transition: "background-color 0.3s",
+                }}
+                onClick={() =>
+                  (window.location.href = `/students/${student.id}`)
+                }
+              >
+                <td style={{ padding: "10px", border: "1px solid #ddd" }}>
+                  {student.id}
+                </td>
+                <td style={{ padding: "10px", border: "1px solid #ddd" }}>
+                  {student.name}
+                </td>
+                <td style={{ padding: "10px", border: "1px solid #ddd" }}>
+                  {student.email}
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 };
 
 export default StudentList;
-
-const styles = `
-  li {
-    list-style-type: none;
-  }
-
-  a {
-    text-decoration: none;
-    color: inherit;
-  }
-
-  a:visited {
-    color: inherit;
-  }
-  a:visited {
-    color: inherit;
-  }
-
-  a:hover,
-  a:focus {
-    color: inherit;
-  }
-`;
-
-const styleSheet = document.createElement("style");
-styleSheet.type = "text/css";
-styleSheet.innerText = styles;
-document.head.appendChild(styleSheet);

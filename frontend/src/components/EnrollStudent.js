@@ -2,50 +2,34 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 
 const EnrollStudent = () => {
-  const [studentId, setStudentId] = useState(""); // State for student ID
-  const [courseId, setCourseId] = useState(""); // State for course ID
-  const [studentName, setStudentName] = useState(""); // State for student name
-  const [courseName, setCourseName] = useState(""); // State for course name
+  const [students, setStudents] = useState([]); // State for all students
+  const [courses, setCourses] = useState([]); // State for all courses
+  const [studentId, setStudentId] = useState(null); // State for selected student ID
+  const [courseId, setCourseId] = useState(null); // State for selected course ID
+  const [selectedStudent, setSelectedStudent] = useState(null); // State to hold selected student
+  const [selectedCourse, setSelectedCourse] = useState(null); // State to hold selected course
+  const [searchStudentName, setSearchStudentName] = useState(""); // Search query for students
+  const [searchCourseName, setSearchCourseName] = useState(""); // Search query for courses
   const [error, setError] = useState(null); // State to hold error message
   const [success, setSuccess] = useState(null); // State to hold success message
 
-  // Fetch student name based on studentId
+  // Fetch students and courses
   useEffect(() => {
-    if (studentId) {
-      axios
-        .get(`http://localhost:8081/students/${studentId}`)
-        .then((response) => {
-          setStudentName(response.data.name); // Save student name in state
-          setError(null); // Reset error if student found
-        })
-        .catch(() => {
-          setStudentName(""); // Reset name if there's an error
-          setError("No student found with this ID.");
-        });
-    } else {
-      setStudentName(""); // Clear student name if studentId is cleared
-      setError(null); // Clear error if studentId is cleared
-    }
-  }, [studentId]);
+    const fetchStudentsAndCourses = async () => {
+      try {
+        const studentResponse = await axios.get(
+          "http://localhost:8081/students"
+        );
+        setStudents(studentResponse.data);
+        const courseResponse = await axios.get("http://localhost:8082/courses");
+        setCourses(courseResponse.data);
+      } catch (error) {
+        setError("Error fetching students or courses.");
+      }
+    };
 
-  // Fetch course name based on courseId
-  useEffect(() => {
-    if (courseId) {
-      axios
-        .get(`http://localhost:8082/courses/${courseId}`)
-        .then((response) => {
-          setCourseName(response.data.name); // Save course name in state
-          setError(null); // Reset error if course found
-        })
-        .catch(() => {
-          setCourseName(""); // Reset name if there's an error
-          setError("No course found with this ID.");
-        });
-    } else {
-      setCourseName(""); // Clear course name if courseId is cleared
-      setError(null); // Clear error if courseId is cleared
-    }
-  }, [courseId]);
+    fetchStudentsAndCourses();
+  }, []);
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -53,33 +37,54 @@ const EnrollStudent = () => {
 
     // Validate inputs
     if (!studentId || !courseId) {
-      setError("Both Student ID and Course ID are required.");
+      setError("Both Student and Course must be selected.");
       return;
     }
 
-    // Reset previous success and error messages
-    setSuccess(null);
-    setError(null);
+    setError(null); // Clear error on submit
+    setSuccess(null); // Clear previous success message
 
     try {
-      // Send a POST request to enroll the student in the course
-      const response = await axios.post(
+      // Check if the student is already enrolled in the selected course
+      const enrollmentCheck = await axios.get(
+        `http://localhost:8083/enrollments/student/${studentId}`
+      );
+
+      // If student is already enrolled in the course, show an error
+      const alreadyEnrolled = enrollmentCheck.data.enrollments.some(
+        (enrollment) => enrollment.courseId === courseId
+      );
+
+      if (alreadyEnrolled) {
+        setError("Student is already enrolled in this course.");
+        return;
+      }
+
+      // Proceed to enroll the student if not already enrolled
+      await axios.post(
         `http://localhost:8083/enrollments/student/${studentId}/course/${courseId}`
       );
 
       // Reset form and display success message
-      setStudentId("");
-      setCourseId("");
-      setStudentName("");
-      setCourseName("");
-      setSuccess("Student enrolled in the course successfully!");
+      setStudentId(null);
+      setCourseId(null);
+      setSelectedStudent(null);
+      setSelectedCourse(null);
+      setSuccess("Student successfully enrolled in the course!");
     } catch (err) {
       setError("Failed to enroll the student. Please try again.");
     }
   };
 
-  // Check if both student and course are valid
-  const isFormValid = studentName && courseName && studentId && courseId;
+  // Filter students by name
+  const filteredStudents = students.filter((student) =>
+    student.name.toLowerCase().includes(searchStudentName.toLowerCase())
+  );
+
+  // Filter courses by name
+  const filteredCourses = courses.filter((course) =>
+    course.name.toLowerCase().includes(searchCourseName.toLowerCase())
+  );
 
   return (
     <div className="enroll-student-container">
@@ -91,44 +96,72 @@ const EnrollStudent = () => {
 
       {/* Enrollment form */}
       <form onSubmit={handleSubmit} className="enroll-student-form">
-        <div className="form-group">
-          <label htmlFor="studentId">Student ID:</label>
-          <input
-            type="number"
-            id="studentId"
-            value={studentId}
-            onChange={(e) => setStudentId(e.target.value)}
-            placeholder="Enter student ID"
-            required
-          />
-          {studentName && (
-            <p>
-              <strong>Student Name:</strong> {studentName}
-            </p>
-          )}
-        </div>
+        <div className="search-container">
+          {/* Search student by name */}
+          <div className="search-group">
+            <input
+              type="text"
+              placeholder="Search Student by Name"
+              value={searchStudentName}
+              onChange={(e) => setSearchStudentName(e.target.value)}
+              className="search-input"
+            />
+            <div className="list-container">
+              <h3>Select Student</h3>
+              <div className="list">
+                {filteredStudents.map((student) => (
+                  <div
+                    key={student.id}
+                    className={`item ${
+                      selectedStudent === student.id ? "selected" : ""
+                    }`}
+                    onClick={() => {
+                      setSelectedStudent(student.id);
+                      setStudentId(student.id);
+                    }}
+                  >
+                    {student.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
 
-        <div className="form-group">
-          <label htmlFor="courseId">Course ID:</label>
-          <input
-            type="number"
-            id="courseId"
-            value={courseId}
-            onChange={(e) => setCourseId(e.target.value)}
-            placeholder="Enter course ID"
-            required
-          />
-          {courseName && (
-            <p>
-              <strong>Course Name:</strong> {courseName}
-            </p>
-          )}
+          {/* Search course by name */}
+          <div className="search-group">
+            <input
+              type="text"
+              placeholder="Search Course by Name"
+              value={searchCourseName}
+              onChange={(e) => setSearchCourseName(e.target.value)}
+              className="search-input"
+            />
+            <div className="list-container">
+              <h3>Select Course</h3>
+              <div className="list">
+                {filteredCourses.map((course) => (
+                  <div
+                    key={course.id}
+                    className={`item ${
+                      selectedCourse === course.id ? "selected" : ""
+                    }`}
+                    onClick={() => {
+                      setSelectedCourse(course.id);
+                      setCourseId(course.id);
+                    }}
+                  >
+                    {course.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         <button
           type="submit"
           className="submit-button"
-          disabled={!isFormValid} // Disable button if form is not valid
+          disabled={!studentId || !courseId} // Disable button if no student or course selected
         >
           Enroll Student
         </button>
@@ -139,7 +172,7 @@ const EnrollStudent = () => {
         {`
           .enroll-student-container {
             width: 100%;
-            max-width: 500px;
+            max-width: 800px;
             margin: 30px auto;
             padding: 20px;
             background-color: #f9f9f9;
@@ -157,23 +190,55 @@ const EnrollStudent = () => {
             flex-direction: column;
           }
 
-          .form-group {
-            margin-bottom: 15px;
+          .search-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
           }
 
-          .form-group label {
-            font-weight: bold;
-            display: block;
-            margin-bottom: 5px;
+          .search-group {
+            width: 45%;
           }
 
-          .form-group input {
+          .search-input {
             width: 100%;
-            padding: 5px;
-            height:30px;
+            padding: 10px;
+            margin-bottom: 15px;
             font-size: 16px;
-            border: 1px solid #ccc;
             border-radius: 5px;
+            border: 1px solid #ccc;
+          }
+
+          .list-container {
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            max-height: 200px;
+            overflow-y: auto;
+          }
+
+          .list {
+            max-height: 200px;
+            overflow-y: auto;
+          }
+
+          .item {
+            padding: 10px;
+            cursor: pointer;
+            margin: 5px 0;
+            background-color: #fff;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+          }
+
+          .item:hover {
+            background-color: #f1f1f1;
+          }
+
+          .item.selected {
+            background-color: #007bff;
+            color: white;
           }
 
           .submit-button {

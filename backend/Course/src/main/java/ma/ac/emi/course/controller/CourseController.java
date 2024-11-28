@@ -15,38 +15,26 @@ public class CourseController {
     @Autowired
     private CourseService courseService;
 
-    @Autowired
-    private WebClient.Builder webClientBuilder;
 
+
+    //All Courses
     @GetMapping
     public List<Course> getAllCourses() {
         return courseService.getAllCourses();
     }
 
+    // Create Course
     @PostMapping
     public Course saveCourse(@RequestBody Course course) {
         return courseService.saveCourse(course);
     }
 
+    // Course By Id
     @GetMapping("/{courseId}")
     public Course getCourseById(@PathVariable Long courseId) {
         return courseService.getCourseById(courseId);
     }
 
-    @GetMapping("/{courseId}/students")
-    public List<String> getStudentsEnrolledInCourse(@PathVariable Long courseId) {
-        String url = "http://localhost:8081/students/courses/" + courseId;
 
-        return webClientBuilder.build()
-                .get()
-                .uri(url)
-                .retrieve()
-                .bodyToMono(List.class)
-                .block();
-    }
 
-    @DeleteMapping("/{courseId}")
-    public void deleteCourse(@PathVariable Long courseId) {
-        courseService.deleteCourse(courseId);
-    }
 }
