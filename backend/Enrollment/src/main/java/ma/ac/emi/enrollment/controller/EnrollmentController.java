@@ -6,9 +6,9 @@ import ma.ac.emi.enrollment.entity.Enrollment;
 import ma.ac.emi.enrollment.service.CoursClient;
 import ma.ac.emi.enrollment.service.EnrollmentService;
 import ma.ac.emi.enrollment.service.EtudiantClient;
-import org.springframework.beans.factory.annotation.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -19,9 +19,6 @@ public class EnrollmentController {
 
     @Autowired
     private EnrollmentService enrollmentService;
-
-    @Autowired
-    private RestTemplate restTemplate;
 
     @Autowired
     private EtudiantClient etudiantClient;
@@ -50,6 +47,7 @@ public class EnrollmentController {
     }
 
     // Enrollment By Id
+    @CircuitBreaker(name = "Enrollment", fallbackMethod = "getEnrollmentByIdFallback")
     @GetMapping("/{id}")
     public Map<String, Object> getEnrollmentById(@PathVariable Long id) {
         Enrollment enrollment = enrollmentService.getEnrollmentById(id);
@@ -65,41 +63,16 @@ public class EnrollmentController {
         return response;
     }
 
-    // Enrollments grouped by Student
-    @GetMapping
-    public List<Map<String, Object>> getAllEnrollments() {
-        List<Enrollment> enrollments = enrollmentService.getAllEnrollments();
-        Map<Long, List<Enrollment>> groupedByStudent = enrollments.stream()
-                .collect(Collectors.groupingBy(Enrollment::getStudentId));
-        List<Map<String, Object>> response = new ArrayList<>();
-        for (Map.Entry<Long, List<Enrollment>> entry : groupedByStudent.entrySet()) {
-            Long studentId = entry.getKey();
-            List<Enrollment> studentEnrollments = entry.getValue();
-            String studentServiceUrl = "http://localhost:8081/students/" + studentId;
-            Map<String, Object> student = restTemplate.getForObject(studentServiceUrl, Map.class);
-            List<Map<String, Object>> courses = new ArrayList<>();
-            for (Enrollment enrollment : studentEnrollments) {
-                Long courseId = enrollment.getCourseId();
-                String courseServiceUrl = "http://localhost:8082/courses/" + courseId;
-                Map<String, Object> course = restTemplate.getForObject(courseServiceUrl, Map.class);
-                Map<String, Object> courseDetails = new HashMap<>();
-                courseDetails.put("courseId", courseId);
-                courseDetails.put("courseName", course.get("name"));
-                courseDetails.put("courseDescription", course.get("description"));
-                courseDetails.put("enrollmentId", enrollment.getId());
-                courses.add(courseDetails);
-            }
-            Map<String, Object> studentData = new HashMap<>();
-            studentData.put("studentId", studentId);
-            studentData.put("studentName", student.get("name"));
-            studentData.put("studentEmail", student.get("email"));
-            studentData.put("courses", courses);
-            response.add(studentData);
-        }
-        return response;
+    public Map<String, Object> getEnrollmentByIdFallback(Long id, Throwable throwable) {
+        Map<String, Object> fallbackResponse = new HashMap<>();
+        fallbackResponse.put("message", "Enrollment information is temporarily unavailable.");
+        fallbackResponse.put("enrollmentId", id);
+        fallbackResponse.put("error", throwable.getMessage());
+        return fallbackResponse;
     }
 
     // Courses enrolled by a Student
+    @CircuitBreaker(name = "Enrollment", fallbackMethod = "getEnrollmentsByStudentIdFallback")
     @GetMapping("/student/{studentId}")
     public Map<String, Object> getEnrollmentsByStudentId(@PathVariable Long studentId) {
         List<Enrollment> enrollments = enrollmentService.getAllEnrollments()
@@ -107,13 +80,15 @@ public class EnrollmentController {
                 .filter(enrollment -> enrollment.getStudentId().equals(studentId))
                 .collect(Collectors.toList());
         Map<String, Object> response = new HashMap<>();
-
         if (enrollments.isEmpty()) {
             response.put("message", "No enrollments found for studentId: " + studentId);
             return response;
         }
-
         EtudiantDto student = etudiantClient.getEtudiantById(studentId);
+        if (student == null) {
+            response.put("message", "Student not found with studentId: " + studentId);
+            return response;
+        }
         List<Map<String, Object>> courses = enrollments.stream()
                 .map(enrollment -> {
                     CoursDto course = coursClient.getCoursById(enrollment.getCourseId());
@@ -124,7 +99,6 @@ public class EnrollmentController {
                     return courseDetails;
                 })
                 .collect(Collectors.toList());
-
         response.put("studentId", student.getId());
         response.put("studentName", student.getName());
         response.put("studentEmail", student.getEmail());
@@ -133,7 +107,16 @@ public class EnrollmentController {
         return response;
     }
 
+    public Map<String, Object> getEnrollmentsByStudentIdFallback(Long studentId, Throwable throwable) {
+        Map<String, Object> fallbackResponse = new HashMap<>();
+        fallbackResponse.put("message", "Enrollment details for the student are temporarily unavailable.");
+        fallbackResponse.put("studentId", studentId);
+        fallbackResponse.put("error", throwable.getMessage());
+        return fallbackResponse;
+    }
+
     // Students enrolled in a course
+    @CircuitBreaker(name = "Enrollment", fallbackMethod = "getStudentsByCourseIdFallback")
     @GetMapping("/course/{courseId}")
     public Map<String, Object> getStudentsByCourseId(@PathVariable Long courseId) {
         List<Enrollment> enrollments = enrollmentService.getAllEnrollments()
@@ -142,61 +125,35 @@ public class EnrollmentController {
                 .collect(Collectors.toList());
 
         Map<String, Object> response = new HashMap<>();
-
         if (enrollments.isEmpty()) {
             response.put("message", "No students found for courseId: " + courseId);
-            return response;  // Gracefully handle no students enrolled
+            return response;
         }
-
         CoursDto course = coursClient.getCoursById(courseId);
-        List<Map<String, Object>> students = enrollments.stream()
-                .map(enrollment -> {
-                    EtudiantDto student = etudiantClient.getEtudiantById(enrollment.getStudentId());
-                    Map<String, Object> studentDetails = new HashMap<>();
-                    studentDetails.put("studentId", student.getId());
-                    studentDetails.put("studentName", student.getName());
-                    studentDetails.put("studentEmail", student.getEmail());
-                    return studentDetails;
-                })
-                .collect(Collectors.toList());
-
+        List<Map<String, Object>> students = new ArrayList<>();
+        for (Enrollment enrollment : enrollments) {
+            Long studentId = enrollment.getStudentId();
+            if (studentId != null) {
+                EtudiantDto student = etudiantClient.getEtudiantById(studentId);
+                Map<String, Object> studentDetails = new HashMap<>();
+                studentDetails.put("studentId", student.getId());
+                studentDetails.put("studentName", student.getName());
+                studentDetails.put("studentEmail", student.getEmail());
+                students.add(studentDetails);
+            }
+        }
         response.put("courseId", course.getId());
         response.put("courseName", course.getName());
         response.put("courseDescription", course.getDescription());
         response.put("enrolledStudents", students);
-
         return response;
     }
 
-    @GetMapping("/flat")
-    public List<Map<String, Object>> getAllEnrollmentsFlat() {
-        // Retrieve all enrollments
-        List<Enrollment> enrollments = enrollmentService.getAllEnrollments();
-
-        List<Map<String, Object>> response = new ArrayList<>();
-
-        for (Enrollment enrollment : enrollments) {
-            // Fetch student details from the Student service
-            String studentServiceUrl = "http://localhost:8081/students/" + enrollment.getStudentId();
-            Map<String, Object> student = restTemplate.getForObject(studentServiceUrl, Map.class);
-
-            // Fetch course details from the Course service
-            String courseServiceUrl = "http://localhost:8082/courses/" + enrollment.getCourseId();
-            Map<String, Object> course = restTemplate.getForObject(courseServiceUrl, Map.class);
-
-            // Construct a single enrollment entry
-            Map<String, Object> enrollmentData = new HashMap<>();
-            enrollmentData.put("enrollmentId", enrollment.getId());
-            enrollmentData.put("studentId", enrollment.getStudentId());
-            enrollmentData.put("studentName", student.get("name"));
-            enrollmentData.put("studentEmail", student.get("email"));
-            enrollmentData.put("courseId", enrollment.getCourseId());
-            enrollmentData.put("courseName", course.get("name"));
-            enrollmentData.put("courseDescription", course.get("description"));
-
-            response.add(enrollmentData);
-        }
-
-        return response;
+    public Map<String, Object> getStudentsByCourseIdFallback(Long courseId, Throwable throwable) {
+        Map<String, Object> fallbackResponse = new HashMap<>();
+        fallbackResponse.put("message", "Student details for the course are temporarily unavailable.");
+        fallbackResponse.put("courseId", courseId);
+        fallbackResponse.put("error", throwable.getMessage());
+        return fallbackResponse;
     }
 }

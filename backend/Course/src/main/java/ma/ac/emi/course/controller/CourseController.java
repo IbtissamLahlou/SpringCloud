@@ -3,11 +3,13 @@ package ma.ac.emi.course.controller;
 import ma.ac.emi.course.entity.Course;
 import ma.ac.emi.course.service.CourseService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
 
+@RefreshScope
 @RestController
 @RequestMapping("/courses")
 public class CourseController {
@@ -15,7 +17,12 @@ public class CourseController {
     @Autowired
     private CourseService courseService;
 
-
+    @Value("${course.message:Message par défaut}")
+    private String courseMessage;
+    @GetMapping("/message")
+    public String getCourseMessage() {
+        return courseMessage;
+    }
 
     //All Courses
     @GetMapping
